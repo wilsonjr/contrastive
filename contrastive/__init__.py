@@ -379,7 +379,6 @@ class Kernel_CPCA(CPCA):
         elif method=='rbf':
             K=np.exp(-gamma*squareform(pdist(Z))**2)
 
-        print(K, n)
         m = K.shape[0]-n
         ## Centering the data
         K=self.centering(K,n)
