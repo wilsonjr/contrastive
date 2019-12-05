@@ -147,7 +147,9 @@ class CPCA(object):
                 active_labels = np.ones(dataset.shape[0])
             self.active_labels = active_labels
             if colors is None:
-                 self.colors = ['k','r','b','g','c']
+                self.colors = ['k','r','b','g','c']
+            else:
+                self.colors = colors
 
         if gui:
             try:
@@ -224,16 +226,13 @@ class CPCA(object):
                     plt.legend()
                 plt.show()
             elif (alpha_selection=='manual'):
-                transformed_data, best_alphas = self.automated_cpca(dataset, n_alphas_to_return, n_alphas, max_log_alpha)
-                plt.figure(figsize=[14,3])
-                for j, fg in enumerate(transformed_data):
-                    plt.subplot(1,4,j+1)
-                    for i, l in enumerate(np.sort(np.unique(self.active_labels))):
-                        idx = np.where(self.active_labels==l)
-                        plt.scatter(fg[idx,0],fg[idx,1], color=self.colors[i%len(self.colors)], alpha=0.6, label='Class '+str(i))
-                    plt.title('Alpha='+str(np.round(best_alphas[j],2)))
-                if len(np.unique(self.active_labels))>1:
-                    plt.legend()
+                fg = self.cpca_alpha(dataset, alpha_value)
+                plt.figure(figsize=[6,6])
+                for i, l in enumerate(np.sort(np.unique(self.active_labels))):
+                    idx = np.where(self.active_labels==l)
+                    plt.scatter(fg[idx,0],fg[idx,1], color=self.colors[i%len(self.colors)], alpha=0.6, label='Class '+str(i))
+                plt.title('Alpha=' + str(alpha_value))
+                plt.legend()
                 plt.show()
 
             return
@@ -359,7 +358,7 @@ class Kernel_CPCA(CPCA):
         if not(alpha_selection=='manual'):
             print("The alpha parameter must be set manually for Kernel PCA. Will be using value of alpha = 2")
             alpha_value = 2
-        return cpca_alpha(alpha_value)
+        return self.cpca_alpha(alpha_value)
 
     def fit(self, foreground, background, preprocess_with_pca_dim=None):
         raise ValueError("For Kernel CPCA, the fit() function is not defined. Please use the fit_transform() function directly")
@@ -368,9 +367,10 @@ class Kernel_CPCA(CPCA):
         raise ValueError("For Kernel CPCA, the transform() function is not defined. Please use the fit_transform() function directly")
 
     def cpca_alpha(self, alpha,degree=2,coef0=1):
-        N=self.n_fg + self.n_bg
+        n=self.n_fg + self.n_bg
         Z=np.concatenate([self.fg,self.bg],axis=0)
 
+        K = None
         ## selecting the kernel and computing the kernel matrix
         if self.kernel=='linear':
             K=Z.dot(Z.T)
@@ -379,8 +379,10 @@ class Kernel_CPCA(CPCA):
         elif method=='rbf':
             K=np.exp(-gamma*squareform(pdist(Z))**2)
 
+        print(K, n)
+        m = K.shape[0]-n
         ## Centering the data
-        K=centering(K,n)
+        K=self.centering(K,n)
 
         ## Using Kernel PCA to do the same
         K_til=np.zeros(K.shape)
@@ -408,7 +410,7 @@ class Kernel_CPCA(CPCA):
         return X_proj_kernel#,Y_proj_kernel,Sig[-2:],A[:,-2:]
 
     ## ancillary functions
-    def centering(K,n):
+    def centering(self, K,n):
         m=K.shape[0]-n
         Kx=K[0:n,:][:,0:n]
         Ky=K[n:,:][:,n:]
@@ -426,7 +428,7 @@ class Kernel_CPCA(CPCA):
         return K_center
 
 if __name__ == '__main__':
-    N = 401; D = 1001; gap=3
+    N = 400; D = 30; gap=3
     # In B, all the data pts are from the same distribution, which has different variances in three subspaces.
     B = np.zeros((N, D))
     B[:,0:10] = np.random.normal(0,10,(N,10))
@@ -451,8 +453,9 @@ if __name__ == '__main__':
     A[300:400, 20:30] = np.random.normal(gap,1,(100,10))
     A_labels = [0]*100+[1]*100+[2]*100+[3]*100
 
-    cpca = CPCA(standardize=False)
-    cpca.fit_transform(A, B, plot=True, active_labels=A_labels)
+    cpca = Kernel_CPCA()
+    points = cpca.fit_transform(A, B, plot=True, active_labels=A_labels)
 
     print(A.shape)
     print(B.shape)
+    print(points)
